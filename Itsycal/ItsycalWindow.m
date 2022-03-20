@@ -8,6 +8,7 @@
 
 #import "ItsycalWindow.h"
 #import "Themer.h"
+#import <QuartzCore/QuartzCore.h>
 
 static const CGFloat kMinimumSpaceBetweenWindowAndScreenEdge = 10;
 static const CGFloat kArrowHeight  = 8;
@@ -77,7 +78,16 @@ static const CGFloat kWindowBottomMargin = kCornerRadius + kBorderWidth;
         frameView = [[ItsycalWindowFrameView alloc] initWithFrame:NSZeroRect];
         frameView.translatesAutoresizingMaskIntoConstraints = YES;
         frameView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-        [super setContentView:frameView];
+		
+		NSVisualEffectView *vev = [[NSVisualEffectView alloc] initWithFrame:NSZeroRect];
+		vev.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+		vev.material = NSVisualEffectMaterialPopover;
+		vev.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+		vev.translatesAutoresizingMaskIntoConstraints = YES;
+		
+		[frameView addSubview:vev];
+		
+		[super setContentView:frameView];
     }
     if (_childContentView) {
         [_childContentView removeFromSuperview];
@@ -145,6 +155,62 @@ static const CGFloat kWindowBottomMargin = kCornerRadius + kBorderWidth;
 
 @end
 
+@implementation NSBezierPath (BezierPathQuartzUtilities)
+// This method works only in OS X v10.2 and later.
+- (CGPathRef)quartzPath
+{
+	int i, numElements;
+
+	// Need to begin a path here.
+	CGPathRef           immutablePath = NULL;
+
+	// Then draw the path elements.
+	numElements = [self elementCount];
+	if (numElements > 0)
+	{
+		CGMutablePathRef    path = CGPathCreateMutable();
+		NSPoint             points[3];
+		BOOL                didClosePath = YES;
+
+		for (i = 0; i < numElements; i++)
+		{
+			switch ([self elementAtIndex:i associatedPoints:points])
+			{
+				case NSMoveToBezierPathElement:
+					CGPathMoveToPoint(path, NULL, points[0].x, points[0].y);
+					break;
+
+				case NSLineToBezierPathElement:
+					CGPathAddLineToPoint(path, NULL, points[0].x, points[0].y);
+					didClosePath = NO;
+					break;
+
+				case NSCurveToBezierPathElement:
+					CGPathAddCurveToPoint(path, NULL, points[0].x, points[0].y,
+										points[1].x, points[1].y,
+										points[2].x, points[2].y);
+					didClosePath = NO;
+					break;
+
+				case NSClosePathBezierPathElement:
+					CGPathCloseSubpath(path);
+					didClosePath = YES;
+					break;
+			}
+		}
+
+		// Be sure the path is closed or Quartz may not do valid hit detection.
+		if (!didClosePath)
+			CGPathCloseSubpath(path);
+
+		immutablePath = CGPathCreateCopy(path);
+		CGPathRelease(path);
+	}
+
+	return immutablePath;
+}
+@end
+
 #pragma mark -
 #pragma mark ItsycalWindowFrameView
 
@@ -198,11 +264,13 @@ static const CGFloat kWindowBottomMargin = kCornerRadius + kBorderWidth;
         [arrowPath relativeCurveToPoint:NSMakePoint(kArrowHeight + curveOffset, -kArrowHeight) controlPoint1:NSMakePoint(curveOffset, 0) controlPoint2:NSMakePoint(kArrowHeight, -kArrowHeight)];
         [rectPath appendBezierPath:arrowPath];
     }
-    [Theme.windowBorderColor setStroke];
-    [rectPath setLineWidth:2*kBorderWidth];
-    [rectPath stroke];
-    [Theme.mainBackgroundColor setFill];
-    [rectPath fill];
+
+	CAShapeLayer *shapeLayer = [CAShapeLayer layer];
+	shapeLayer.frame = rectPath.bounds;
+	shapeLayer.path = [rectPath quartzPath];
+
+	self.layer.mask = shapeLayer;
+	self.layer.masksToBounds = YES;
 }
 
 @end

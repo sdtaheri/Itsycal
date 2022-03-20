@@ -62,6 +62,13 @@
     NSView *v = [NSView new];
     v.translatesAutoresizingMaskIntoConstraints = NO;
     
+	NSVisualEffectView *vev = [[NSVisualEffectView alloc] initWithFrame:NSZeroRect];
+	vev.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+	vev.material = NSVisualEffectMaterialPopover;
+	vev.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+	vev.translatesAutoresizingMaskIntoConstraints = YES;
+	[v addSubview:vev];
+	
     // MoCalendar
     _moCal = [MoCalendar new];
     _moCal.delegate = self;
